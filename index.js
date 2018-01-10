@@ -151,7 +151,7 @@ module.exports = function(source) {
     var template = '';
 
     // Parse attributes
-    attributesContext = attributeParser(content, function (tag, attr) {
+    attributesContext = attributeParser(source, function (tag, attr) {
         return attributes.indexOf(tag + ':' + attr) !== -1;
     }, 'ATTRIBUTE', root, parseDynamicRoutes);
 
