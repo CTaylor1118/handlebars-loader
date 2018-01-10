@@ -4,8 +4,7 @@ var async = require("async");
 var util = require("util");
 var path = require("path");
 var assign = require("object-assign");
-var fastreplace = require('./lib/fastreplace');
-var findNestedRequires = require('./lib/findNestedRequires');
+var attributeParser = require('./lib/attributeParser');
 
 function versionCheck(hbCompiler, hbRuntime) {
   return hbCompiler.COMPILER_REVISION === (hbRuntime["default"] || hbRuntime).COMPILER_REVISION;
@@ -63,9 +62,13 @@ module.exports = function(source) {
     }
   });
 
-  var inlineRequires = query.inlineRequires;
-  if (inlineRequires) {
-    inlineRequires = new RegExp(inlineRequires);
+  var attributes = [];
+  if (query.attributes !== undefined) {
+    attributes = Array.isArray(query.attributes) ? query.attributes : [];
+  }
+  var parseDynamicRoutes = false;
+  if (query.parseDynamicRoutes !== undefined) {
+    parseDynamicRoutes = !!query.parseDynamicRoutes;
   }
 
   var exclude = query.exclude;
@@ -114,26 +117,6 @@ module.exports = function(source) {
     }
   };
 
-  if (inlineRequires) {
-    MyJavaScriptCompiler.prototype.pushString = function(value) {
-      if (inlineRequires.test(value)) {
-        this.pushLiteral("require(" + JSON.stringify(value) + ")");
-      } else {
-        JavaScriptCompiler.prototype.pushString.call(this, value);
-      }
-    };
-    MyJavaScriptCompiler.prototype.appendToBuffer = function (str) {
-      // This is a template (stringified HTML) chunk
-      if (str.indexOf && str.indexOf('"') === 0) {
-        var replacements = findNestedRequires(str, inlineRequires);
-        str = fastreplace(str, replacements, function (match) {
-          return "\" + require(" + JSON.stringify(match) + ") + \"";
-        });
-      }
-      return JavaScriptCompiler.prototype.appendToBuffer.apply(this, arguments);
-    };
-  }
-
   hb.JavaScriptCompiler = MyJavaScriptCompiler;
 
   // This is an async loader
@@ -167,6 +150,13 @@ module.exports = function(source) {
     // Precompile template
     var template = '';
 
+    // Parse attributes
+    attributesContext = attributeParser(content, function (tag, attr) {
+        return attributes.indexOf(tag + ':' + attr) !== -1;
+    }, 'ATTRIBUTE', root, parseDynamicRoutes);
+
+    source = attributesContext.replaceMatches(source);
+
     try {
       if (source) {
         template = hb.precompile(source, assign({
@@ -177,6 +167,9 @@ module.exports = function(source) {
         }, precompileOptions, {
           knownHelpers: knownHelpers,
         }));
+
+        // Resolve attributes
+        template = attributesContext.resolveAttributes(template);
       }
     } catch (err) {
       return loaderAsyncCallback(err);
