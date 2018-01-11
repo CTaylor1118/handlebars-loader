@@ -45,6 +45,7 @@ module.exports = function(source) {
   else if (!Array.isArray(extensions)) {
     extensions = extensions.split(/[ ,;]/g);
   }
+  var root = query.root;
 
   var rootRelative = query.rootRelative;
   if (rootRelative == null) {
