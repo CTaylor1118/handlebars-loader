@@ -150,7 +150,10 @@ module.exports = function(source) {
 
     // Precompile template
     var template = '';
-
+    // This will remove any newlines from within HTML tags tags
+    source = source.replace(/<(([^>]+?\n))+([^>]+?)>/g, function(match) {
+      return match.replace(/(\n *)/g, ' ');
+    });
     // Parse attributes
     attributesContext = attributeParser(source, function (tag, attr) {
         return attributes.indexOf(tag + ':' + attr) !== -1;
