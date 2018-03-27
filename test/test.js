@@ -40,7 +40,7 @@ function testTemplate(loader, template, options, testFn) {
 
   loader.call(new WebpackLoaderMock({
     query: options.query,
-    options: options.options || {},
+    rootContext: options.rootContext || {},
     resolveStubs: resolveStubs,
     async: function (err, source) {
       if (err) {
@@ -143,7 +143,7 @@ describe('handlebars-loader', function () {
         query: {
           config: config
         },
-        options: options,
+        rootContext: options,
         data: TEST_TEMPLATE_DATA
       }, function (err, output, require) {
         assert.ok(output, 'generated output');
@@ -192,7 +192,7 @@ describe('handlebars-loader', function () {
         query: {
           config: config
         },
-        options: options,
+        rootContext: options,
         data: TEST_TEMPLATE_DATA
       }, function (err, output, require) {
         assert.ok(output, 'generated output');
@@ -538,6 +538,20 @@ describe('handlebars-loader', function () {
       assert.ok(output, 'generated output');
       assert.ok(output.indexOf('some known helper') >= 0);
       assert.ok(!require.calledWith('./someKnownHelper'), 'should not have tried to dynamically require helper');
+      done();
+    });
+  });
+
+  it('should use failover content of the partial block if it refers to non-existent partial', function (done) {
+    testTemplate(loader, './with-partial-block.handlebars', {}, function (err, output, require) {
+      assert.ok(output, 'generated output');
+      done();
+    });
+  });
+
+  it('should recognize and render inline partials', function (done) {
+    testTemplate(loader, './with-inline-partial.handlebars', {}, function (err, output, require) {
+      assert.ok(output, 'generated output');
       done();
     });
   });

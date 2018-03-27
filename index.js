@@ -20,7 +20,7 @@ function versionCheck(hbCompiler, hbRuntime) {
 function getLoaderConfig(loaderContext) {
   var query = loaderUtils.getOptions(loaderContext) || {};
   var configKey = query.config || 'handlebarsLoader';
-  var config = loaderContext.options[configKey] || {};
+  var config = (loaderContext.rootContext ? loaderContext.rootContext[configKey] : loaderContext.options[configKey]) || {};
   delete query.config;
   return assign({}, config, query);
 }
@@ -120,6 +120,26 @@ module.exports = function(source) {
 
   hb.JavaScriptCompiler = MyJavaScriptCompiler;
 
+  // Define custom visitor for further template AST parsing
+  var Visitor = handlebars.Visitor;
+  function InternalBlocksVisitor() {
+    this.partialBlocks = [];
+    this.inlineBlocks = [];
+  }
+
+  InternalBlocksVisitor.prototype = new Visitor();
+  InternalBlocksVisitor.prototype.PartialBlockStatement = function(partial) {
+    this.partialBlocks.push(partial.name.original);
+    Visitor.prototype.PartialBlockStatement.call(this, partial);
+  };
+  InternalBlocksVisitor.prototype.DecoratorBlock = function(partial) {
+    if (partial.path.original === 'inline') {
+      this.inlineBlocks.push(partial.params[0].value);
+    }
+
+    Visitor.prototype.DecoratorBlock.call(this, partial);
+  };
+
   // This is an async loader
   var loaderAsyncCallback = this.async();
 
@@ -161,19 +181,24 @@ module.exports = function(source) {
 
     source = attributesContext.replaceMatches(source);
 
+    // AST holder for current template
+    var ast = null;
+
+    // Compile options
+    var opts = assign({
+      knownHelpersOnly: !firstCompile,
+      // TODO: Remove these in next major release
+      preventIndent: !!query.preventIndent,
+      compat: !!query.compat
+    }, precompileOptions, {
+      knownHelpers: knownHelpers,
+    });
+
     try {
       if (source) {
-        template = hb.precompile(source, assign({
-          knownHelpersOnly: !firstCompile,
-          // TODO: Remove these in next major release
-          preventIndent: !!query.preventIndent,
-          compat: !!query.compat
-        }, precompileOptions, {
-          knownHelpers: knownHelpers,
-        }));
-
-        // Resolve attributes
-        template = attributesContext.resolveAttributes(template);
+        ast = hb.parse(source, opts);
+        template = attributesContext.resolveAttributes(
+          hb.precompile(ast, opts));
       }
     } catch (err) {
       return loaderAsyncCallback(err);
@@ -283,7 +308,19 @@ module.exports = function(source) {
       } else {
         partialResolver(request, function(err, resolved){
           if(err) {
-            return partialCallback(err);
+            var visitor = new InternalBlocksVisitor();
+
+            visitor.accept(ast);
+
+            if (
+              visitor.inlineBlocks.indexOf(request) !== -1 ||
+              visitor.partialBlocks.indexOf(request) !== -1
+            ) {
+              return partialCallback();
+            } else {
+              return partialCallback(err);
+            }
+
           }
           foundPartials[partial] = resolved;
           needRecompile = true;
