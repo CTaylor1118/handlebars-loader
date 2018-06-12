@@ -96,14 +96,14 @@ module.exports = function(source) {
         return JavaScriptCompiler.prototype.nameLookup.apply(this, arguments);
       }
       if (foundPartials["$" + name]) {
-        return "import " + JSON.stringify(foundPartials["$" + name]);
+        return "(import " + JSON.stringify(foundPartials["$" + name]) + ")";
       }
       foundPartials["$" + name] = null;
       return JavaScriptCompiler.prototype.nameLookup.apply(this, arguments);
     }
     else if (type === "helper") {
       if (foundHelpers["$" + name]) {
-        return "__default(import " + JSON.stringify(foundHelpers["$" + name]) + ")";
+        return "__default((import " + JSON.stringify(foundHelpers["$" + name]) + ")";
       }
       foundHelpers["$" + name] = null;
       return JavaScriptCompiler.prototype.nameLookup.apply(this, arguments);
